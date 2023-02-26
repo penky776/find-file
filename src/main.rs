@@ -7,14 +7,12 @@ use std::io;
 #[derive(Debug)]
 enum Error {
     DirectoryNotFound,
-    MatchNotFound,
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Error::DirectoryNotFound => write!(f, "Could not find directory"),
-            Error::MatchNotFound => write!(f, "Could not find match"),
         }
     }
 }
@@ -43,15 +41,27 @@ fn main() {
         .expect("Could not parse input");
 
     let find_file = match_input(dir, &input);
-    println!("{:?}", find_file);
+    match find_file {
+        Ok(matches) => {
+            if matches.len() == 0 {
+                println!("No matches found!");
+            } else {
+                for item in matches {
+                    println!("page {} in {}", item.0, item.1);
+                }
+            }
+        }
+        Err(e) => println!("{}", e),
+    }
 }
 
-fn match_input(dir: String, input: &String) -> Result<(u32, String), Error> {
+fn match_input(dir: String, input: &String) -> Result<Vec<(u32, String)>, Error> {
     let entries = match fs::read_dir(dir) {
         Ok(entries) => Ok(entries),
         Err(_) => Err(Error::DirectoryNotFound),
     };
 
+    let mut matches: Vec<(u32, String)> = Vec::new();
     for entry in entries.unwrap() {
         if let Ok(entry) = entry {
             if is_file(&entry) {
@@ -69,7 +79,7 @@ fn match_input(dir: String, input: &String) -> Result<(u32, String), Error> {
                             .replace("\n", "")
                             .replace("?Identity-H Unimplemented?", ""); // grabs text
                         if text.contains(input) {
-                            return Ok((page.0, dir_path)); // returns page number and directory if true
+                            matches.push((page.0, dir_path.clone())); // returns page number and directory if true
                         } else {
                             continue;
                         }
@@ -78,14 +88,14 @@ fn match_input(dir: String, input: &String) -> Result<(u32, String), Error> {
             } else {
                 let dir_path = entry.path().into_os_string().into_string().unwrap(); // initializes sub-directory path
                 match match_input(dir_path, input) {
-                    Ok((i, a)) => return Ok((i, a)),
-                    Err(_) => continue,
-                }; // redoes the function with the sub-directory
+                    Ok(_) => continue,
+                    Err(e) => return Err(e),
+                } // redoes the function with the sub-directory
             }
         }
     }
 
-    Err(Error::MatchNotFound)
+    return Ok(matches);
 }
 
 fn is_file(path: &DirEntry) -> bool {
