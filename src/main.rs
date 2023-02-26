@@ -26,7 +26,10 @@ fn main() {
         .read_line(&mut dir)
         .expect("could not read input");
 
-    let dir = dir.trim().parse::<String>().unwrap();
+    let dir = dir
+        .trim()
+        .parse::<String>()
+        .expect("Could not parse directory");
 
     let mut input = String::new();
     println!("enter a sentence, or a part of a sentence, that you would like to query for: "); // Be warned of case sensitivity.
@@ -34,7 +37,10 @@ fn main() {
         .read_line(&mut input)
         .expect("could not read input");
 
-    let input = input.trim().parse::<String>().unwrap();
+    let input = input
+        .trim()
+        .parse::<String>()
+        .expect("Could not parse input");
 
     let find_file = match_input(dir, &input);
     println!("{:?}", find_file);
@@ -50,8 +56,12 @@ fn match_input(dir: String, input: &String) -> Result<(u32, String), Error> {
         if let Ok(entry) = entry {
             if is_file(&entry) {
                 if is_pdf(&entry) {
-                    let dir_path = entry.path().into_os_string().into_string().unwrap(); // turns the path into string
-                    let doc = Document::load(dir_path.clone()).unwrap(); // loads the document
+                    let dir_path = entry
+                        .path()
+                        .into_os_string()
+                        .into_string()
+                        .expect("Could not parse directory path"); // turns the path into string
+                    let doc = Document::load(dir_path.clone()).expect("Could not load document"); // loads the document
                     for page in doc.get_pages() {
                         let text = doc
                             .extract_text(&[page.0])
@@ -66,7 +76,7 @@ fn match_input(dir: String, input: &String) -> Result<(u32, String), Error> {
                     }
                 }
             } else {
-                let dir_path = entry.path().into_os_string().into_string().unwrap();
+                let dir_path = entry.path().into_os_string().into_string().unwrap(); // initializes sub-directory path
                 match match_input(dir_path, input) {
                     Ok((i, a)) => return Ok((i, a)),
                     Err(_) => continue,
