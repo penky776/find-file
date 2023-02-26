@@ -7,15 +7,18 @@ use std::io;
 #[derive(Debug)]
 enum Error {
     DirectoryNotFound,
+    MatchNotFound,
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Error::DirectoryNotFound => write!(f, "Could not find directory"),
+            Error::MatchNotFound => write!(f, "Could not find match"),
         }
     }
 }
+
 fn main() {
     let mut dir = String::new();
     println!("enter directory: ");
@@ -33,56 +36,50 @@ fn main() {
 
     let input = input.trim().parse::<String>().unwrap();
 
-    let pdf_files = read_dir(dir).unwrap();
-
-    for file in pdf_files.iter() {
-        let result = match_input(file.path().into_os_string().into_string().unwrap(), &input);
-        println!("{:?}", result);
-    }
+    let find_file = match_input(dir, &input);
+    println!("{:?}", find_file);
 }
 
-fn read_dir(dir: String) -> Result<Vec<DirEntry>, Error> {
+fn match_input(dir: String, input: &String) -> Result<(u32, String), Error> {
     let entries = match fs::read_dir(dir) {
         Ok(entries) => Ok(entries),
         Err(_) => Err(Error::DirectoryNotFound),
     };
 
-    let mut pdf_files = Vec::with_capacity(1000); // sets limit of 1000 pdf files in one directory
-
     for entry in entries.unwrap() {
         if let Ok(entry) = entry {
             if is_file(&entry) {
                 if is_pdf(&entry) {
-                    pdf_files.push(entry)
+                    let dir_path = entry.path().into_os_string().into_string().unwrap(); // turns the path into string
+                    let doc = Document::load(dir_path.clone()).unwrap(); // loads the document
+                    for page in doc.get_pages() {
+                        let text = doc
+                            .extract_text(&[page.0])
+                            .unwrap()
+                            .replace("\n", "")
+                            .replace("?Identity-H Unimplemented?", ""); // grabs text
+                        if text.contains(input) {
+                            return Ok((page.0, dir_path)); // returns page number and directory if true
+                        } else {
+                            continue;
+                        }
+                    }
                 }
             } else {
-                match read_dir(entry.path().into_os_string().into_string().unwrap()) {
-                    Ok(mut new_list) => pdf_files.append(&mut new_list),
-                    Err(e) => return Err(e),
-                }
+                let dir_path = entry.path().into_os_string().into_string().unwrap();
+                match match_input(dir_path, input) {
+                    Ok((i, a)) => return Ok((i, a)),
+                    Err(_) => continue,
+                }; // redoes the function with the sub-directory
             }
         }
     }
-    return Ok(pdf_files);
+
+    Err(Error::MatchNotFound)
 }
 
 fn is_file(path: &DirEntry) -> bool {
     return path.path().is_file();
-}
-
-fn match_input(path: String, input: &String) -> Result<(u32, String), String> {
-    let doc = Document::load(&path).unwrap();
-    for page in doc.get_pages() {
-        let text = doc
-            .extract_text(&[page.0])
-            .unwrap()
-            .replace("\n", "")
-            .replace("?Identity-H Unimplemented?", "");
-        if text.contains(input) {
-            return Ok((page.0, path));
-        }
-    }
-    Err("Match not found".to_string()) // TODO
 }
 
 fn is_pdf(entry: &DirEntry) -> bool {
